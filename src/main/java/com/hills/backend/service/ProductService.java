@@ -6,13 +6,17 @@ import com.hills.backend.model.Product;
 import com.hills.backend.model.ProductDetails;
 import com.hills.backend.model.ProductsResponse;
 //import com.hills.backend.repository.ProductRepository;
+import jakarta.persistence.Entity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ProductService {
@@ -30,59 +34,32 @@ public class ProductService {
         storeProductsInCache(products);
     }
 
+    public Map<String, Product> getProducts(String category,
+                            String nameLike,
+                            String descriptionLike,
+                            String sortByPrice
+    ) {
+        Stream<Map.Entry<String,Product>> query = Storage.products.entrySet().stream();
+
+        if(category != null) {
+            query = query.filter(entry -> entry.getValue().getCategory().toLowerCase().equals(category.toLowerCase()));
+        }
+        if(nameLike != null) {
+            query = query.filter(entry -> entry.getValue().getName().toLowerCase().contains(nameLike.toLowerCase()));
+        }
+        if(descriptionLike != null) {
+            query = query.filter(entry -> entry.getValue().getDescription().toLowerCase().contains(descriptionLike.toLowerCase()));
+        }
+
+        Map<String, Product> filteredMap = query.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
+
+        return filteredMap;
+    }
+
     private void storeProductsInCache(ResponseEntity<ProductsResponse> products){
         for(Product p : Arrays.asList(products.getBody().products.data.items)){
             Storage.products.put(p.getId(), p);
         }
-    }
-
-    private class PriceComparator implements Comparator<Product> {
-
-        @Override
-        public int compare(Product product1, Product product2) {
-            return product1.getPrice().compareTo(product2.getPrice());
-        }
-
-    }
-
-    private void sortProductsByPrice(String flag){
-        if(flag.equalsIgnoreCase("ascending"))
-            Collections.sort(Storage.products.values().stream().toList(), new PriceComparator());
-        else
-            Collections.sort(Storage.products.values().stream().toList(), Collections.reverseOrder(new PriceComparator()));
-
-    }
-
-    private List<Product> filterProductsByCategory(String category){
-
-        List<Product> productsByCategory = new ArrayList<>();
-
-        for(Map.Entry<String, Product> storage : Storage.products.entrySet()){
-            if(storage.getValue().getCategory().equals(category.toLowerCase()))
-                productsByCategory.add(storage.getValue());
-        }
-
-        //ToDO else
-        if(!productsByCategory.isEmpty())
-            return productsByCategory;
-        else
-            return null;
-    }
-
-    private List<Product> searchProductsByNameOrDescription(String searchParam){
-
-        List<Product> productsBySearchParam = new ArrayList<>();
-
-        for(Map.Entry<String, Product> storage : Storage.products.entrySet()){
-            if(storage.getValue().getName().equalsIgnoreCase(searchParam) ||
-                storage.getValue().getDescription().equalsIgnoreCase(searchParam))
-                productsBySearchParam.add(storage.getValue());
-        }
-
-        if(!productsBySearchParam.isEmpty())
-            return productsBySearchParam;
-        else
-            return null;
     }
 
 
